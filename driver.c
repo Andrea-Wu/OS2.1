@@ -1,14 +1,5 @@
-#include <linux/types.h>
-#include <linux/fs.h>
-#include <linux/cdev.h>
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/kdev_t.h>
-#include <linux/kernel.h>
-#include <linux/device.h>
-#include <linux/splice.h>
-#include <linux/slab.h>
-MODULE_LICENSE("Dual BSD/GPL");
+#include "driver.h"
+#include "encryptDecrypt.c"
 
 //IOCTL functions
 //the 2nd argument should be UNIQUE, 1st arg should be 169 for all 
@@ -23,73 +14,6 @@ dev_t cryptctl_dev;
 //just make all my variables global lol
 char* userMessage;
 char* encryptedMessage;
-
-void cipher(char* key){
-    //TODO: for now the global userMessage == str because I'm not 100% sure 
-    //  how this will be implemented- will writing 2 strings consecutively to file concat them,
-    //  or will second string overwrite the first?
-    char* str = userMessage;
-    int key_len = strlen(key);
-    int enc_len = strlen(encryptedMessage); //the length of the old encryptedMessage that we will clear
-    int str_len = strlen(str);
-    int key_counter = 0; //this is used to cycle thru characters in key string
-    char row; //this is a row of the "table" for ciphering
-    char col; //this is a column of the "table" for ciphering
-    //(note that we're not creating an actual table)
-    
-    int new_enc_len = 0; //this is for keeping track of the new encryptedMessage length
-    char str_i;
-
-    //clear encryptedMessage
-    int i;
-    for(i=0; i<enc_len; i++){
-        encryptedMessage[i] = '\0';
-    }
-
-    //make sure all letters in key are capitalized or else this algorithm will break
-    for(i=0; i<key_len;i++){
-         if(key[i] >= 97 && key[i] <= 122){
-            key[i] = key[i] - 22;
-        }
-    }
-    
-    //the cipher algorithm
-
-    for(i=0;i<str_len; i++){
-        //if character is non-alphabetic, just ignore it
-        //this is essentially isalpha(), which isn't available in kernel
-        str_i = str[i];
-        if(!(str_i >= 97 && str_i <= 122) && !(str_i >= 65 && str_i <=90)){
-            continue;
-        }
-
-        //if letter is not capitalized, make it capitalized
-        if(str_i >= 97 && str_i <= 122){
-            str[i] = str_i - 32;
-        }
-        
-        //value @ key[key_counter] = row -> row #
-        //value @ str[i] = col -> col#
-        
-        //mapping characters to numbers 
-        //for example, A:0, B:1, ... Z:25
-        row = key[key_counter] - 65; 
-        col = str[i] -65;
-
-        //the value of the char in the return string is (( row + col) % 26) + 65
-        encryptedMessage[new_enc_len] = (char)(((row+col)%26) + 65);
-
-        new_enc_len++;
-        key_counter++;
-        //if counter exceeds index of key, reset to 0
-        if(key_counter == key_len){
-            key_counter = 0;
-        }
-    }
-
-    //append null terminator to encrypted string
-    encryptedMessage[new_enc_len] = '\0';    
-}
 
 ssize_t encrypt_write(
     struct file* file,
@@ -117,18 +41,16 @@ int cryptctl_release(
     printk(KERN_ALERT "closed device\n");
     return 0;
 }
-
+//this should actually be called "encrypt_write" but that's for later
 ssize_t cryptctl_write(
     struct file* file,
     const char* buffer, 
     size_t size,
     loff_t* offset          
 ){
-
-    
     //write to global buffer
     snprintf(userMessage,size,"%s",buffer);
-    cipher("HOUGHTON");
+    encrypt("HOUGHTON", userMessage, encryptedMessage);
     printk(KERN_ALERT "your word has %s has been ciphered into %s\n", userMessage, encryptedMessage);
 
     return size;
@@ -141,7 +63,7 @@ long cryptctl_ioctl(
         unsigned long ioctl_param /* The parameter to it */
 ){
 
-    /*
+   /* 
     switch(ioctl_cmd){
         case IOCTL_CREATE:
             //create new encode/decode pair and store info somewheres
@@ -154,7 +76,7 @@ long cryptctl_ioctl(
 
     }
 
-    */
+*/
     printk(KERN_ALERT "in ioctl\n");
     return 0;
 }

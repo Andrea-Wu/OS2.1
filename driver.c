@@ -25,7 +25,6 @@ ssize_t encrypt_write(
 }
 
 
-
 int cryptctl_open(
     struct inode* inode,
     struct file* file   
@@ -50,8 +49,9 @@ ssize_t cryptctl_write(
 ){
     //write to global buffer
     snprintf(userMessage,size,"%s",buffer);
-    encrypt("HOUGHTON", userMessage, encryptedMessage);
-    printk(KERN_ALERT "your word has %s has been ciphered into %s\n", userMessage, encryptedMessage);
+    //encrypt("HOUGHTON", userMessage, encryptedMessage);
+    decrypt("HOUGHTON",  userMessage, encryptedMessage);
+    printk(KERN_ALERT "your word has %s has been deciphered into %s\n", userMessage, encryptedMessage);
 
     return size;
 }

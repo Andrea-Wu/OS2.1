@@ -38,31 +38,26 @@ void cipher(char* key){
     //(note that we're not creating an actual table)
     
     int new_enc_len = 0; //this is for keeping track of the new encryptedMessage length
-    int str_i;
+    char str_i;
 
     //clear encryptedMessage
     int i;
-       printk(KERN_ALERT "ass1\n");
     for(i=0; i<enc_len; i++){
         encryptedMessage[i] = '\0';
     }
 
-   printk(KERN_ALERT "ass2\n");
     //make sure all letters in key are capitalized or else this algorithm will break
     for(i=0; i<key_len;i++){
          if(key[i] >= 97 && key[i] <= 122){
             key[i] = key[i] - 22;
         }
     }
-
-   printk(KERN_ALERT "ass3\n");
+    
     //the cipher algorithm
 
-    printk(KERN_ALERT "str_len is %d\n", str_len);
     for(i=0;i<str_len; i++){
         //if character is non-alphabetic, just ignore it
         //this is essentially isalpha(), which isn't available in kernel
-           printk(KERN_ALERT "ass4\n");
         str_i = str[i];
         if(!(str_i >= 97 && str_i <= 122) && !(str_i >= 65 && str_i <=90)){
             continue;
@@ -70,9 +65,8 @@ void cipher(char* key){
 
         //if letter is not capitalized, make it capitalized
         if(str_i >= 97 && str_i <= 122){
-            str[i] = str_i - 22;
+            str[i] = str_i - 32;
         }
-
         
         //value @ key[key_counter] = row -> row #
         //value @ str[i] = col -> col#
@@ -81,21 +75,18 @@ void cipher(char* key){
         //for example, A:0, B:1, ... Z:25
         row = key[key_counter] - 65; 
         col = str[i] -65;
-           printk(KERN_ALERT "ass10\n");
+
         //the value of the char in the return string is (( row + col) % 26) + 65
         encryptedMessage[new_enc_len] = (char)(((row+col)%26) + 65);
 
-         printk(KERN_ALERT "ass11\n");
         new_enc_len++;
         key_counter++;
         //if counter exceeds index of key, reset to 0
         if(key_counter == key_len){
             key_counter = 0;
         }
-         printk(KERN_ALERT "ass12\n");
     }
 
-     printk(KERN_ALERT "ass13\n");
     //append null terminator to encrypted string
     encryptedMessage[new_enc_len] = '\0';    
 }
@@ -133,18 +124,11 @@ ssize_t cryptctl_write(
     size_t size,
     loff_t* offset          
 ){
-    printk(KERN_ALERT "wrote to device\n");
 
-   printk(KERN_ALERT "snprintfing\n");
-
+    
     //write to global buffer
-    sprintf(userMessage,"%s",buffer);
-
-   printk(KERN_ALERT "done snprintfing\n");
-    cipher("ASS");
-
-       printk(KERN_ALERT "done ciphering\n");
-
+    snprintf(userMessage,size,"%s",buffer);
+    cipher("HOUGHTON");
     printk(KERN_ALERT "your word has %s has been ciphered into %s\n", userMessage, encryptedMessage);
 
     return size;
@@ -200,8 +184,6 @@ int what(void){
         userMessage[i] = '\0';
     }
     
-    printk(KERN_ALERT "holyJesus len %d\n", (int)strlen(userMessage));
-    
     //allocate space for encrypted string & null terminate
     encryptedMessage = (char*)kmalloc(sizeof(char) * 1000,GFP_KERNEL);
     for(i=0;i<1000;i++){
@@ -227,7 +209,6 @@ int what(void){
     cryptctl_class = class_create(THIS_MODULE, "cryptctl_class");
     device_create(cryptctl_class, NULL, cryptctl_dev, NULL, "cryptctl");
     
-    //printk(KERN_ALERT "this number is ")
     return 0;
 
 }

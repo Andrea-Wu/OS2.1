@@ -1,0 +1,3 @@
+#define MAJOR_NUM 169
+#define IOCTL_CREATE _IO(MAJOR_NUM,0)
+

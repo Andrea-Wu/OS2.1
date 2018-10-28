@@ -96,10 +96,6 @@ struct file_operations cryptctl_fops = {
 };
 
 ioctl_create(void){
-        char* enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
-        //give a name 
-        sprintf(enc_name, "cryptEncrypt%d", idCounter);
-
         //allocate space for new pairnode
         pairNode* newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
         
@@ -107,12 +103,7 @@ ioctl_create(void){
         temp -> next = newNode;
         
         //create dev 
-        //the minor number of enc device will be 2 * idCounter
-        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * idCounter); 
-        
-        if(register_chrdev_region(newNode->enc_dev, 1 , enc_name)){
-            printk()
-        }
+        newNode -> 
 }
 
 

@@ -30,6 +30,8 @@ ssize_t encrypt_write(
     size_t size,
     loff_t offset    
 ){
+
+    printk(KERN_ALERT "inside encrypt_write\n");
     return size;
 }
 
@@ -95,24 +97,46 @@ struct file_operations cryptctl_fops = {
     .write = cryptctl_write
 };
 
-ioctl_create(void){
+void ioctl_create(void){
+
+        //create a fops for encrypt
+        struct file_operations* enc_fop = (file_operations*)kmalloc(sizeof(file_operations), GFP_KERNEL);
+        enc_fop -> owner = THIS_MODULE;
+        enc_fop -> write = encrypt_write;
+
         char* enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
+        
         //give a name 
-        sprintf(enc_name, "cryptEncrypt%d", idCounter);
+        sprintf(enc_name, "fuck%d", idCounter);
 
         //allocate space for new pairnode
         pairNode* newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
         
         //append it to global LL 
         temp -> next = newNode;
-        
+        temp = temp -> next;     
+   
         //create dev 
         //the minor number of enc device will be 2 * idCounter
         newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * idCounter); 
         
         if(register_chrdev_region(newNode->enc_dev, 1 , enc_name)){
-            printk()
+            printk(KERN_ALERT "failed to register chardev region\n");
+        }else{
+            printk(KERN_ALERT "registered chardev region!\n");    
         }
+
+        newNode -> enc_cdev = cdev_alloc();
+        newNode -> enc_cdev -> ops = enc_fop;
+        cdev_init(newNode->enc_cdev, enc_fop);
+        if(cdev_add(newNode->enc_cdev, newNode->enc_dev)  < 0){
+            printk(KERN_ALERT "failed to add cdev\n");
+        }else{
+            printk(KERN_ALERT "added cdev\n");
+        }
+
+        newNode->enc_class = class_create(THIS_MODULE, enc_name);
+        device_create(newNode->enc_class, NULL, newNode->enc_dev, NULL, enc_name);
 }
 
 
@@ -161,8 +185,18 @@ int what(void){
 }
 
 void exit_module(void){
-    //unregister cdev (the old way)
-    //unregister_chrdev(global_major, "cryptctl");
+    //for each thing in the linked list,unregister everythin
+
+    pairNode* t = head -> next;
+    while(t != NULL){
+        device_destroy(t->enc_class, t->enc_dev);
+        class_destroy(t->enc_class);    
+        unregister_chrdev_region(t->enc_dev, 1);
+        cdev_del(t->enc_cdev);
+        printk(KERN_ALERT "deleted sub-device\n");
+        t = t -> next;
+    } 
+
 
     //destroy device file
     device_destroy(cryptctl_class, cryptctl_dev);

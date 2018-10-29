@@ -1,0 +1,1 @@
+cmd_/home/superuser/OS2.1/driver.ko := ld -r -m elf_x86_64 -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/superuser/OS2.1/driver.ko /home/superuser/OS2.1/driver.o /home/superuser/OS2.1/driver.mod.o ;  true

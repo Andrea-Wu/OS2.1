@@ -1,6 +1,11 @@
 #include "driver.h"
 #include "encryptDecrypt.c"
-#include "ioct.lh"
+#include "ioctl.h"
+
+MODULE_LICENSE("Dual BSD/GPL");
+
+//func prototypes
+void ioctl_create(void);
 
 //these globals need to be created on module_init and destroyed on module_close.
 int global_major;
@@ -17,18 +22,20 @@ typedef struct pairNode{
     //if these are not freed when module is removed, then we fucked
     struct cdev* enc_cdev;
     struct class* enc_class;
-	dev_t enc_dev
-} pairNode
+	dev_t enc_dev;
+        
+    struct pairNode* next;
+} pairNode;
 
-pairNode head;
-pairNode temp;
+pairNode* head;
+pairNode* temp;
 int idCounter = 4;
 
 ssize_t encrypt_write(
     struct file* file,
-    char __user* user, 
+    const char* user, 
     size_t size,
-    loff_t offset    
+    loff_t* offset    
 ){
 
     printk(KERN_ALERT "inside encrypt_write\n");
@@ -98,19 +105,20 @@ struct file_operations cryptctl_fops = {
 };
 
 void ioctl_create(void){
-
+        char* enc_name;
+        pairNode* newNode;
         //create a fops for encrypt
-        struct file_operations* enc_fop = (file_operations*)kmalloc(sizeof(file_operations), GFP_KERNEL);
+        struct file_operations* enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
         enc_fop -> owner = THIS_MODULE;
-        enc_fop -> write = encrypt_write;
+        enc_fop -> write = cryptctl_write;
 
-        char* enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
+        enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
         
         //give a name 
         sprintf(enc_name, "fuck%d", idCounter);
 
         //allocate space for new pairnode
-        pairNode* newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
+        newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
         
         //append it to global LL 
         temp -> next = newNode;
@@ -129,7 +137,7 @@ void ioctl_create(void){
         newNode -> enc_cdev = cdev_alloc();
         newNode -> enc_cdev -> ops = enc_fop;
         cdev_init(newNode->enc_cdev, enc_fop);
-        if(cdev_add(newNode->enc_cdev, newNode->enc_dev)  < 0){
+        if(cdev_add(newNode->enc_cdev, newNode->enc_dev, 1)  < 0){
             printk(KERN_ALERT "failed to add cdev\n");
         }else{
             printk(KERN_ALERT "added cdev\n");
@@ -137,6 +145,9 @@ void ioctl_create(void){
 
         newNode->enc_class = class_create(THIS_MODULE, enc_name);
         device_create(newNode->enc_class, NULL, newNode->enc_dev, NULL, enc_name);
+        
+        //increment id counter
+        idCounter++;
 }
 
 
@@ -197,17 +208,22 @@ void exit_module(void){
         t = t -> next;
     } 
 
-
+    printk(KERN_ALERT "fuck1");
     //destroy device file
     device_destroy(cryptctl_class, cryptctl_dev);
+    printk(KERN_ALERT "fuck2");
 
     //destroy class
     class_destroy(cryptctl_class);
+
+    printk(KERN_ALERT "fuck3");
     //unregister cdev space
     unregister_chrdev_region(MKDEV(MAJOR_NUM,0), 1);
 
+    printk(KERN_ALERT "fuck4");
     //unregister cdev numbers(the new way)
     cdev_del(my_cdev);
+    printk(KERN_ALERT "fuck5");
 
     printk(KERN_ALERT "exiting cryptctl module\n");
 }

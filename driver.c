@@ -5,8 +5,10 @@
 MODULE_LICENSE("Dual BSD/GPL");
 
 //func prototypes
-void ioctl_create(int id);
+int ioctl_create(char* key);
 void ioctl_delete(int id);
+void ioctl_get_key(int id);
+//void ioctl_change_key();
 
 //these globals need to be created on module_init and destroyed on module_close.
 int global_major;
@@ -18,11 +20,14 @@ dev_t cryptctl_dev;
 char* userMessage;
 char* encryptedMessage;
 
+//global id counter
+int idCounter = 1;
+
 
 typedef struct pairNode{
     //if these are not freed when module is removed, then we fucked
     int id;
-
+    char* key;
     struct cdev* enc_cdev;
     struct class* enc_class;
 	dev_t enc_dev;
@@ -88,15 +93,15 @@ long cryptctl_ioctl(
 ){
 
     int id;
-  
+    char* key;
+    //char* key;  
     switch(ioctl_cmd){
         case IOCTL_CREATE:
             //unpack the ioctl param  
-            id = (int)ioctl_param;
-            printk(KERN_ALERT "ioctl create recieved id %d\n", id);
-
+            key = (char*)ioctl_param;
             //create new encode/decode pair and store info somewheres
-            ioctl_create(id);        
+            printk(KERN_ALERT "creating something\n");
+            ioctl_create(key);        
             break;
         case IOCTL_DESTROY:
             //unpack ioctl param
@@ -104,6 +109,18 @@ long cryptctl_ioctl(
             printk(KERN_ALERT "ioctl delete recieved id is %d\n", id);
             ioctl_delete(id);
             break;
+        case IOCTL_GET_KEY:
+            id = (int)ioctl_param;
+             printk(KERN_ALERT "ioctl get key recieved id is %d\n", id);
+            ioctl_get_key(id);
+            break;
+        /*
+          case IOCTL_CHANGE_KEY:
+            //key = (char*)ioctl_param;
+            
+           // printk(KERN_ALERT "changing key of pair %d to %s\n", id,key);
+            //ioctl_change_key();
+    */        
     }
 
     printk(KERN_ALERT "in ioctl\n");
@@ -121,60 +138,36 @@ struct file_operations cryptctl_fops = {
     .write = cryptctl_write
 };
 
-void ioctl_create(int id){
+int ioctl_create(char* key){
         char* enc_name;
         pairNode* newNode;
-        pairNode* itr;
         //create a fops for encrypt
-        struct file_operations* enc_fop;
-
-        //make sure the key doesn't exist already by searching global LL (starting from head->next) 
-                                                                       //b/c head is dummy node
-        if(head == NULL){
-            printk(KERN_ALERT "idk why head would be null\n");
-            return;
-        }
-
-        //0 is the minor number of the cryptctl device
-        if(id == 0){
-            printk(KERN_ALERT "can't register ID of 0, sorry\n");
-            return;
-        }
         
-        itr = head -> next;
-        while(itr != NULL){
-            if(itr -> id == id){
-                printk(KERN_ALERT "key with id %d already exists\n", id);
-                return;
-            }
-            itr = itr -> next;
-        }
-
-
+        struct file_operations* enc_fop;
         enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
         enc_fop -> owner = THIS_MODULE;
         enc_fop -> write = cryptctl_write;
 
-        
+        //assign a name for all the things we have to create (use the same name for everythng) 
         enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
-        
-        //give a name 
-        sprintf(enc_name, "fuck%d", id);
+        sprintf(enc_name, "fuck%d", idCounter);
 
         //allocate space for new pairnode
         newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
        
         //init some struct values
-        newNode -> id = id;
+        newNode -> id = idCounter;
         newNode -> next = NULL;        
+        newNode -> key = (char*)kmalloc(sizeof(char) * 21, GFP_KERNEL);
+        newNode -> key = key;
  
         //append it to global LL 
         temp -> next = newNode;
         temp = temp -> next;     
    
         //create dev 
-        //the minor number of enc device will be 2 * id
-        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * id); 
+        //the minor number of enc device will be 2 * idCounter
+        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * idCounter); 
   
         //register chraracter device region      
         if(register_chrdev_region(newNode->enc_dev, 1 , enc_name)){
@@ -197,7 +190,25 @@ void ioctl_create(int id){
         //creating class and device
         newNode->enc_class = class_create(THIS_MODULE, enc_name);
         device_create(newNode->enc_class, NULL, newNode->enc_dev, NULL, enc_name);
-        
+   
+        //increment global idCounter
+        idCounter++;
+
+        return idCounter -1;     
+}
+
+void ioctl_get_key(int id){
+    pairNode* itr = head -> next;
+    printk(KERN_ALERT "in ioctl_get_key\n");
+    while(itr != NULL){
+        printk(KERN_ALERT "id is %d\n", id);
+        printk(KERN_ALERT "itr -> id is %d\n", itr -> id);
+        if(itr -> id == id){
+            printk(KERN_ALERT "current key of device %d is %s\n", id, itr->key);
+            break;
+        }
+        itr = itr -> next;
+    }
 }
 
 void ioctl_delete(int id){

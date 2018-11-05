@@ -6,6 +6,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 //func prototypes
 void ioctl_create(int id);
+void ioctl_delete(int id);
 
 //these globals need to be created on module_init and destroyed on module_close.
 int global_major;
@@ -101,6 +102,7 @@ long cryptctl_ioctl(
             //unpack ioctl param
             id = (int)ioctl_param;
             printk(KERN_ALERT "ioctl delete recieved id is %d\n", id);
+            ioctl_delete(id);
             break;
     }
 
@@ -130,6 +132,12 @@ void ioctl_create(int id){
                                                                        //b/c head is dummy node
         if(head == NULL){
             printk(KERN_ALERT "idk why head would be null\n");
+            return;
+        }
+
+        //0 is the minor number of the cryptctl device
+        if(id == 0){
+            printk(KERN_ALERT "can't register ID of 0, sorry\n");
             return;
         }
         
@@ -190,6 +198,45 @@ void ioctl_create(int id){
         newNode->enc_class = class_create(THIS_MODULE, enc_name);
         device_create(newNode->enc_class, NULL, newNode->enc_dev, NULL, enc_name);
         
+}
+
+void ioctl_delete(int id){
+    pairNode* itr_tmp;
+    pairNode* itr;
+    if(head == NULL){
+        printk(KERN_ALERT "idk why head would be null\n");
+        return;
+    }
+
+    itr_tmp = head;
+    itr = head -> next;
+    while(itr != NULL){
+        printk(KERN_ALERT "at id %d\n", itr->id);
+        if(itr -> id == id){
+            //remove itr from list
+            itr_tmp -> next = itr_tmp -> next -> next;
+            
+            //removing device bookkeeping                        
+            device_destroy(itr->enc_class, itr->enc_dev);
+            class_destroy(itr->enc_class);    
+            unregister_chrdev_region(itr->enc_dev, 1);
+            cdev_del(itr->enc_cdev);
+
+            //TODO: free node
+
+            printk(KERN_ALERT "deleted sub-device with id %d\n", id);
+            break;
+     
+        }
+        itr_tmp = itr;
+        itr = itr -> next;
+    }
+    
+    if(itr == NULL){
+        printk(KERN_ALERT "device with id %d could not be deleted bc it doesn't exist\n", id);
+    }
+
+
 }
 
 

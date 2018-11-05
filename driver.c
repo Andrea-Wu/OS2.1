@@ -140,6 +140,7 @@ struct file_operations cryptctl_fops = {
 
 int ioctl_create(char* key){
         char* enc_name;
+        char* keyCpy;
         pairNode* newNode;
         //create a fops for encrypt
         
@@ -158,8 +159,9 @@ int ioctl_create(char* key){
         //init some struct values
         newNode -> id = idCounter;
         newNode -> next = NULL;        
-        newNode -> key = (char*)kmalloc(sizeof(char) * 21, GFP_KERNEL);
-        newNode -> key = key;
+        keyCpy = (char*)kmalloc(sizeof(char) * 21, GFP_KERNEL);
+        sprintf(keyCpy,"%s",key);
+        newNode -> key = keyCpy;
  
         //append it to global LL 
         temp -> next = newNode;
@@ -200,15 +202,18 @@ int ioctl_create(char* key){
 void ioctl_get_key(int id){
     pairNode* itr = head -> next;
     printk(KERN_ALERT "in ioctl_get_key\n");
+    printk(KERN_ALERT "id is %d\n", id);
+    
     while(itr != NULL){
-        printk(KERN_ALERT "id is %d\n", id);
         printk(KERN_ALERT "itr -> id is %d\n", itr -> id);
         if(itr -> id == id){
             printk(KERN_ALERT "current key of device %d is %s\n", id, itr->key);
+            //printk(KERN_ALERT "simulating get_key\n");
             break;
         }
         itr = itr -> next;
     }
+    
 }
 
 void ioctl_delete(int id){

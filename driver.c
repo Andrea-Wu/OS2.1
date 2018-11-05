@@ -8,7 +8,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 int ioctl_create(char* key);
 void ioctl_delete(int id);
 void ioctl_get_key(int id);
-//void ioctl_change_key();
+void ioctl_change_key(int id, char* key);
 
 //these globals need to be created on module_init and destroyed on module_close.
 int global_major;
@@ -94,6 +94,7 @@ long cryptctl_ioctl(
 
     int id;
     char* key;
+    changeKeyParam* str_param;
     //char* key;  
     switch(ioctl_cmd){
         case IOCTL_CREATE:
@@ -114,13 +115,15 @@ long cryptctl_ioctl(
              printk(KERN_ALERT "ioctl get key recieved id is %d\n", id);
             ioctl_get_key(id);
             break;
-        /*
-          case IOCTL_CHANGE_KEY:
-            //key = (char*)ioctl_param;
-            
-           // printk(KERN_ALERT "changing key of pair %d to %s\n", id,key);
-            //ioctl_change_key();
-    */        
+        
+        case IOCTL_CHANGE_KEY:
+            str_param = (changeKeyParam*)ioctl_param;
+            id = str_param -> id;
+            key = str_param-> key;
+
+            printk(KERN_ALERT "changing key of pair %d to %s\n", id,key);
+            ioctl_change_key(id, key);
+          
     }
 
     printk(KERN_ALERT "in ioctl\n");
@@ -216,6 +219,24 @@ void ioctl_get_key(int id){
     
 }
 
+void ioctl_change_key(int id, char* key){
+    char* newKey;
+    pairNode* itr = head -> next;
+    printk(KERN_ALERT "in ioctl_get_key\n");
+    printk(KERN_ALERT "id is %d\n", id);
+    
+    while(itr != NULL){
+        printk(KERN_ALERT "itr -> id is %d\n", itr -> id);
+        if(itr -> id == id){
+            newKey = (char*)kmalloc(sizeof(char)*21, GFP_KERNEL);
+            sprintf(newKey, "%s", key);
+            itr -> key = newKey;
+            break;
+        }
+        itr = itr -> next;
+    }
+}
+
 void ioctl_delete(int id){
     pairNode* itr_tmp;
     pairNode* itr;
@@ -238,7 +259,9 @@ void ioctl_delete(int id){
             unregister_chrdev_region(itr->enc_dev, 1);
             cdev_del(itr->enc_cdev);
 
-            //TODO: free node
+            //vvfree node & string
+            //vfree(itr -> key);
+            //vfree(itr);
 
             printk(KERN_ALERT "deleted sub-device with id %d\n", id);
             break;
@@ -303,17 +326,26 @@ int what(void){
 
 void exit_module(void){
     //for each thing in the linked list,unregister everythin
-
+    pairNode* f = head;
     pairNode* t = head -> next;
     while(t != NULL){
         printk("LOOPZ\n");
+        //char dev info
         device_destroy(t->enc_class, t->enc_dev);
         class_destroy(t->enc_class);    
         unregister_chrdev_region(t->enc_dev, 1);
         cdev_del(t->enc_cdev);
+        
         printk(KERN_ALERT "deleted sub-device\n");
+        f = t;
         t = t -> next;
+        
+        //vfree node stuff 
+        //vfree(f -> key);
+        //vfree(f);
     } 
+
+    
 
     printk(KERN_ALERT "fuck1");
     //destroy device file

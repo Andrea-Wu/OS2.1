@@ -23,6 +23,8 @@ typedef struct pairNode{
     struct cdev* enc_cdev;
     struct class* enc_class;
 	dev_t enc_dev;
+
+    char* userStringEncrypt;
         
     struct pairNode* next;
 } pairNode;
@@ -37,6 +39,8 @@ ssize_t encrypt_write(
     size_t size,
     loff_t* offset    
 ){
+    
+    
 
     printk(KERN_ALERT "inside encrypt_write\n");
     return size;

@@ -1,6 +1,11 @@
 #include "driver.h"
 #include "encryptDecrypt.c"
-#include "ioct.lh"
+#include "ioctl.h"
+
+MODULE_LICENSE("Dual BSD/GPL");
+
+//func prototypes
+void ioctl_create(int id);
 
 //these globals need to be created on module_init and destroyed on module_close.
 int global_major;
@@ -17,19 +22,26 @@ typedef struct pairNode{
     //if these are not freed when module is removed, then we fucked
     struct cdev* enc_cdev;
     struct class* enc_class;
-	dev_t enc_dev
-} pairNode
+	dev_t enc_dev;
 
-pairNode head;
-pairNode temp;
-int idCounter = 4;
+    char* userStringEncrypt;
+        
+    struct pairNode* next;
+} pairNode;
+
+pairNode* head;
+pairNode* temp;
 
 ssize_t encrypt_write(
     struct file* file,
-    char __user* user, 
+    const char* user, 
     size_t size,
-    loff_t offset    
+    loff_t* offset    
 ){
+    
+    
+
+    printk(KERN_ALERT "inside encrypt_write\n");
     return size;
 }
 
@@ -72,11 +84,21 @@ long cryptctl_ioctl(
         unsigned long ioctl_param /* The parameter to it */
 ){
 
+    int id;
   
     switch(ioctl_cmd){
         case IOCTL_CREATE:
+            //unpack the ioctl param  
+            id = (int)ioctl_param;
+            printk(KERN_ALERT "ioctl create recieved id %d\n", id);
+
             //create new encode/decode pair and store info somewheres
-            ioctl_create();        
+            ioctl_create(id);        
+            break;
+        case IOCTL_DESTROY:
+            //unpack ioctl param
+            id = (int)ioctl_param;
+            printk(KERN_ALERT "ioctl delete recieved id is %d\n", id);
             break;
     }
 
@@ -95,15 +117,61 @@ struct file_operations cryptctl_fops = {
     .write = cryptctl_write
 };
 
-ioctl_create(void){
+void ioctl_create(int id){
+        char* enc_name;
+        pairNode* newNode;
+        pairNode* itr;
+        //create a fops for encrypt
+        struct file_operations* enc_fop;
+
+        //make sure the key doesn't exist already by searching global LL (starting from head)
+        itr = head;
+        while(itr != NULL){
+            if(itr.)
+            itr = itr -> next;
+        }
+
+        enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
+        enc_fop -> owner = THIS_MODULE;
+        enc_fop -> write = cryptctl_write;
+
+        enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
+        
+        //give a name 
+        sprintf(enc_name, "fuck%d", id);
+
         //allocate space for new pairnode
-        pairNode* newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
+        newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
         
         //append it to global LL 
         temp -> next = newNode;
-        
+        temp = temp -> next;     
+   
         //create dev 
-        newNode -> 
+        //the minor number of enc device will be 2 * id
+        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * id); 
+  
+        //register chraracter device region      
+        if(register_chrdev_region(newNode->enc_dev, 1 , enc_name)){
+            printk(KERN_ALERT "failed to register chardev region\n");
+        }else{
+            printk(KERN_ALERT "registered chardev region!\n");    
+        }
+        
+        //allocating cdev space
+        newNode -> enc_cdev = cdev_alloc();
+        newNode -> enc_cdev -> ops = enc_fop;
+        cdev_init(newNode->enc_cdev, enc_fop);
+        if(cdev_add(newNode->enc_cdev, newNode->enc_dev, 1)  < 0){
+            printk(KERN_ALERT "failed to add cdev\n");
+        }else{
+            printk(KERN_ALERT "added cdev\n");
+        }
+
+        //creating class and device
+        newNode->enc_class = class_create(THIS_MODULE, enc_name);
+        device_create(newNode->enc_class, NULL, newNode->enc_dev, NULL, enc_name);
+        
 }
 
 
@@ -152,19 +220,34 @@ int what(void){
 }
 
 void exit_module(void){
-    //unregister cdev (the old way)
-    //unregister_chrdev(global_major, "cryptctl");
+    //for each thing in the linked list,unregister everythin
 
+    pairNode* t = head -> next;
+    while(t != NULL){
+        device_destroy(t->enc_class, t->enc_dev);
+        class_destroy(t->enc_class);    
+        unregister_chrdev_region(t->enc_dev, 1);
+        cdev_del(t->enc_cdev);
+        printk(KERN_ALERT "deleted sub-device\n");
+        t = t -> next;
+    } 
+
+    printk(KERN_ALERT "fuck1");
     //destroy device file
     device_destroy(cryptctl_class, cryptctl_dev);
+    printk(KERN_ALERT "fuck2");
 
     //destroy class
     class_destroy(cryptctl_class);
+
+    printk(KERN_ALERT "fuck3");
     //unregister cdev space
     unregister_chrdev_region(MKDEV(MAJOR_NUM,0), 1);
 
+    printk(KERN_ALERT "fuck4");
     //unregister cdev numbers(the new way)
     cdev_del(my_cdev);
+    printk(KERN_ALERT "fuck5");
 
     printk(KERN_ALERT "exiting cryptctl module\n");
 }

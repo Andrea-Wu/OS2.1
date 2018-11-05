@@ -13,5 +13,6 @@ int main(){
         printf("opened\n");
     }
 
-    ioctl(fd, IOCTL_CREATE);
+    ioctl(fd, IOCTL_CREATE, 100);
+//    ioctl(fd, IOCTL_DESTROY, 50);
 }

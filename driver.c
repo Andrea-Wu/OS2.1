@@ -5,7 +5,7 @@
 MODULE_LICENSE("Dual BSD/GPL");
 
 //func prototypes
-void ioctl_create(void);
+void ioctl_create(int id);
 
 //these globals need to be created on module_init and destroyed on module_close.
 int global_major;
@@ -20,6 +20,8 @@ char* encryptedMessage;
 
 typedef struct pairNode{
     //if these are not freed when module is removed, then we fucked
+    int id;
+
     struct cdev* enc_cdev;
     struct class* enc_class;
 	dev_t enc_dev;
@@ -31,7 +33,6 @@ typedef struct pairNode{
 
 pairNode* head;
 pairNode* temp;
-int idCounter = 4;
 
 ssize_t encrypt_write(
     struct file* file,
@@ -85,11 +86,21 @@ long cryptctl_ioctl(
         unsigned long ioctl_param /* The parameter to it */
 ){
 
+    int id;
   
     switch(ioctl_cmd){
         case IOCTL_CREATE:
+            //unpack the ioctl param  
+            id = (int)ioctl_param;
+            printk(KERN_ALERT "ioctl create recieved id %d\n", id);
+
             //create new encode/decode pair and store info somewheres
-            ioctl_create();        
+            ioctl_create(id);        
+            break;
+        case IOCTL_DESTROY:
+            //unpack ioctl param
+            id = (int)ioctl_param;
+            printk(KERN_ALERT "ioctl delete recieved id is %d\n", id);
             break;
     }
 
@@ -108,36 +119,64 @@ struct file_operations cryptctl_fops = {
     .write = cryptctl_write
 };
 
-void ioctl_create(void){
+void ioctl_create(int id){
         char* enc_name;
         pairNode* newNode;
+        pairNode* itr;
         //create a fops for encrypt
-        struct file_operations* enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
+        struct file_operations* enc_fop;
+
+        //make sure the key doesn't exist already by searching global LL (starting from head->next) 
+                                                                       //b/c head is dummy node
+        if(head == NULL){
+            printk(KERN_ALERT "idk why head would be null\n");
+            return;
+        }
+        
+        itr = head -> next;
+        while(itr != NULL){
+            if(itr -> id == id){
+                printk(KERN_ALERT "key with id %d already exists\n", id);
+                return;
+            }
+            itr = itr -> next;
+        }
+
+
+        enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
         enc_fop -> owner = THIS_MODULE;
         enc_fop -> write = cryptctl_write;
 
+        
         enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
         
         //give a name 
-        sprintf(enc_name, "fuck%d", idCounter);
+        sprintf(enc_name, "fuck%d", id);
 
         //allocate space for new pairnode
         newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
-        
+       
+        //init some struct values
+        newNode -> id = id;
+        newNode -> next = NULL;        
+ 
         //append it to global LL 
         temp -> next = newNode;
         temp = temp -> next;     
    
         //create dev 
-        //the minor number of enc device will be 2 * idCounter
-        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * idCounter); 
-        
+        //the minor number of enc device will be 2 * id
+        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * id); 
+  
+        //register chraracter device region      
         if(register_chrdev_region(newNode->enc_dev, 1 , enc_name)){
             printk(KERN_ALERT "failed to register chardev region\n");
         }else{
             printk(KERN_ALERT "registered chardev region!\n");    
         }
-
+        
+        
+        //allocating cdev space
         newNode -> enc_cdev = cdev_alloc();
         newNode -> enc_cdev -> ops = enc_fop;
         cdev_init(newNode->enc_cdev, enc_fop);
@@ -147,11 +186,10 @@ void ioctl_create(void){
             printk(KERN_ALERT "added cdev\n");
         }
 
+        //creating class and device
         newNode->enc_class = class_create(THIS_MODULE, enc_name);
         device_create(newNode->enc_class, NULL, newNode->enc_dev, NULL, enc_name);
         
-        //increment id counter
-        idCounter++;
 }
 
 
@@ -162,6 +200,7 @@ int what(void){
    
     //allocate stuff for global linked list
     head = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL); //dummy node
+    head -> next = NULL;
     temp = head;
  
     //allocate space for string that user will input & null terminate
@@ -204,6 +243,7 @@ void exit_module(void){
 
     pairNode* t = head -> next;
     while(t != NULL){
+        printk("LOOPZ\n");
         device_destroy(t->enc_class, t->enc_dev);
         class_destroy(t->enc_class);    
         unregister_chrdev_region(t->enc_dev, 1);

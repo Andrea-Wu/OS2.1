@@ -73,7 +73,7 @@ ssize_t encrypt_write(struct file* file, const char* buffer, size_t size,loff_t*
     return size;
 }
 
-ssize_t encrypt_read(struct file* file, const char* buffer, size_t size, loff_t* offset){
+ssize_t encrypt_read(struct file* file, char* buffer, size_t size, loff_t* offset){
     //figure out which file to read from:
 
     struct inode* inode;

@@ -87,7 +87,7 @@ int main(int argc, char* argv[]){
         }else{
             printf("wrote successfully to encrypt\n");
         }
-        
+    
         buffer = (char*)malloc(sizeof(char) * 1000);
         
         printf("boutta read\n");
@@ -97,6 +97,7 @@ int main(int argc, char* argv[]){
             printf("read successfully from encrypt\n");
             printf("read %s\n", buffer);    
         }
+
     }else if(!strcmp(argv[1], "decrypt")){
         printf("decrypt\n");
     }else if(!strcmp(argv[1], "get_key")){

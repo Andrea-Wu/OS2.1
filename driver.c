@@ -43,7 +43,10 @@ typedef struct pairNode{
     dev_t dec_dev;
 
     char* encryptRes;
-    char* decryptRes;    
+    char* decryptRes;   
+
+    //for kobject shit
+    struct kobject* kobj; 
         
     struct pairNode* next;
 } pairNode;
@@ -266,6 +269,7 @@ struct file_operations cryptctl_fops = {
 
 int ioctl_create(char* key){
         struct attribute* attr;
+        struct kobj_type* ktype;
 
         char* enc_name;
         char* dec_name;        
@@ -356,14 +360,25 @@ int ioctl_create(char* key){
         newNode->dec_class = class_create(THIS_MODULE, dec_name);
         device_create(newNode->dec_class, NULL, newNode->dec_dev, NULL, dec_name);
 
+        //create/populate struct attribute 
+        attr = (struct attribute*)kmalloc(sizeof(struct attribute), GFP_KERNEL);
+        //attr->owner = THIS_MODULE;
+        attr->name = "config";
+        //attr->name = (char*)kmalloc(sizeof(char)*7, GFP_KERNEL);
+        //sprintf(attr->name, "%s", "config");
+        attr->mode = S_IWUSR;
 
-        //use the struct cdev to access kobj
+        //create/populate a kobj_type
+        ktype = kmalloc(sizeof(struct kobj_type), GFP_KERNEL);
+        ktype-> default_attrs = &attr;  
+   
+        //kobject shit
+        newNode ->kobj = &(newNode->enc_cdev-> kobj);
+        kobject_init(&(newNode->enc_cdev-> kobj),ktype);
         kobject_add(&(newNode->enc_cdev-> kobj), NULL, "crypt%d_key", idCounter);
 
-        //create/populate struct attribute 
-        
         //int sysfs_create_file(struct kobject *kobj, struct attribute *attr);
-      
+        sysfs_create_file(&(newNode->enc_cdev-> kobj), attr);
  
         //increment global idCounter
         idCounter++;
@@ -415,6 +430,9 @@ void ioctl_delete(int id){
             //remove itr from list
             itr_tmp -> next = itr_tmp -> next -> next;
             
+            //remove kobject things
+            kobject_del(itr-> kobj);
+
             //removing device bookkeeping                        
             device_destroy(itr->enc_class, itr->enc_dev);
             class_destroy(itr->enc_class);    
@@ -496,6 +514,10 @@ void exit_module(void){
     pairNode* t = head -> next;
     while(t != NULL){
         printk("LOOPZ\n");
+        
+        //remove kobject things
+        kobject_del(itr-> kobj);
+
         //char dev info
         device_destroy(t->enc_class, t->enc_dev);
         class_destroy(t->enc_class);    

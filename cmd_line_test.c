@@ -14,6 +14,8 @@ int main(int argc, char* argv[]){
 
     int sub_fd;
     char* devName;
+    char* buffer;
+
     fd = open("/dev/cryptctl", O_RDWR);
     if(fd == -1){
         printf("file could not be opened, try again\n");
@@ -81,12 +83,19 @@ int main(int argc, char* argv[]){
             return -1;
         }
         if(write(sub_fd, argv[3], strlen(argv[3])) == -1){
-            printf("failed to write\n");
+            printf("failed to write to encrypt\n");
         }else{
-            printf("wrote successfully\n");
+            printf("wrote successfully to encrypt\n");
         }
         
-        printf("encrypt\n");
+        buffer = (char*)malloc(sizeof(char) * 1000);
+
+        if(read(sub_fd,buffer,999, 0) == 0){
+            printf("failed to read from encrypt\n");
+        }else{
+            printf("read successfully from encrypt\n");
+            printf("read %s\n", buffer);    
+        }
     }else if(!strcmp(argv[1], "decrypt")){
         printf("decrypt\n");
     }else if(!strcmp(argv[1], "get_key")){

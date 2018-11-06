@@ -45,12 +45,7 @@ typedef struct pairNode{
 pairNode* head;
 pairNode* temp;
 
-ssize_t encrypt_write(
-    struct file* file,
-    const char* buffer, 
-    size_t size,
-    loff_t* offset    
-){
+ssize_t encrypt_write(struct file* file, const char* buffer, size_t size,loff_t* offset){
     //figure out which file is writing:
     struct inode* inode;
     unsigned int minor;
@@ -78,6 +73,34 @@ ssize_t encrypt_write(
     return size;
 }
 
+ssize_t encrypt_read(struct file* file, const char* buffer, size_t size, loff_t* offset){
+    //figure out which file to read from:
+    struct inode* inode;
+    unsigned int minor;
+    int id;
+    pairNode* itr = head -> next;
+
+    inode = file-> f_path.dentry -> d_inode;
+    minor = iminor(inode);
+    id = minor/2;
+
+    
+    printk(KERN_ALERT "reading from device %d\n", id);
+    
+    //get the node from global LL
+     
+    while(itr != NULL){
+        if(itr -> id == id){
+            sprintf(buffer, "%s", itr -> encryptRes);   
+            return strlen(encryptedRes);
+        }
+        itr = itr -> next;
+    } 
+
+    return 0;
+
+}
+
 
 int cryptctl_open(
     struct inode* inode,
@@ -94,7 +117,7 @@ int cryptctl_release(
     printk(KERN_ALERT "closed device\n");
     return 0;
 }
-//this should actually be called "encrypt_write" but that's for later
+
 ssize_t cryptctl_write(
     struct file* file,
     const char* buffer, 

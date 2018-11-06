@@ -9,5 +9,6 @@
 #include <linux/splice.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
+#include <linux/kobject.h>
 
 MODULE_LICENSE("Dual BSD/GPL");

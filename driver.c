@@ -117,11 +117,9 @@ ssize_t decrypt_write(struct file* file, const char* buffer, size_t size,loff_t*
     struct inode* inode;
     unsigned int minor;
     int id;
-    printk(KERN_ALERT "the heck?\n");
 
     pairNode* itr = head -> next;
 
-    printk(KERN_ALERT "this sucks\n");
     inode = file-> f_path.dentry -> d_inode;
     minor = iminor(inode);
     id = minor/2;
@@ -267,6 +265,8 @@ struct file_operations cryptctl_fops = {
 };
 
 int ioctl_create(char* key){
+        struct attribute* attr;
+
         char* enc_name;
         char* dec_name;        
 
@@ -356,7 +356,15 @@ int ioctl_create(char* key){
         newNode->dec_class = class_create(THIS_MODULE, dec_name);
         device_create(newNode->dec_class, NULL, newNode->dec_dev, NULL, dec_name);
 
-  
+
+        //use the struct cdev to access kobj
+        kobject_add(&(newNode->enc_cdev-> kobj), NULL, "crypt%d_key", idCounter);
+
+        //create/populate struct attribute 
+        
+        //int sysfs_create_file(struct kobject *kobj, struct attribute *attr);
+      
+ 
         //increment global idCounter
         idCounter++;
 
@@ -441,7 +449,8 @@ int what(void){
     int i;
     int cryptctl_control_dev; 
     int cdev_ret;
-   
+
+ 
     //allocate stuff for global linked list
     head = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL); //dummy node
     head -> next = NULL;

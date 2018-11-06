@@ -5,7 +5,10 @@
 MODULE_LICENSE("Dual BSD/GPL");
 
 //func prototypes
-void ioctl_create(int id);
+int ioctl_create(char* key);
+void ioctl_delete(int id);
+void ioctl_get_key(int id);
+void ioctl_change_key(int id, char* key);
 
 //these globals need to be created on module_init and destroyed on module_close.
 int global_major;
@@ -17,33 +20,162 @@ dev_t cryptctl_dev;
 char* userMessage;
 char* encryptedMessage;
 
+//global id counter
+int idCounter = 1;
+
+//global variable to answer question "which device is being written to?"
+int whichDevice = -1;
+
+//TODO: mutex for whichDevice- if multiple users use the command at once. 
+//not completely necessary
 
 typedef struct pairNode{
     //if these are not freed when module is removed, then we fucked
+    int id;
+    char* key;
     struct cdev* enc_cdev;
-    struct class* enc_class;
-	dev_t enc_dev;
+    struct cdev* dec_cdev;
 
-    char* userStringEncrypt;
+    struct class* enc_class;
+    struct class* dec_class;
+
+	dev_t enc_dev;
+    dev_t dec_dev;
+
+    char* encryptRes;
+    char* decryptRes;    
         
     struct pairNode* next;
 } pairNode;
 
 pairNode* head;
-pairNode* temp;
 
-ssize_t encrypt_write(
-    struct file* file,
-    const char* user, 
-    size_t size,
-    loff_t* offset    
-){
-    
-    
+ssize_t encrypt_write(struct file* file, const char* buffer, size_t size,loff_t* offset){
+    //figure out which file is writing:
+    struct inode* inode;
+    unsigned int minor;
+    int id;
+    pairNode* itr = head -> next;
 
-    printk(KERN_ALERT "inside encrypt_write\n");
+    inode = file-> f_path.dentry -> d_inode;
+    minor = iminor(inode);
+    id = minor/2;
+
+    
+    printk(KERN_ALERT "writing %s to device %d\n", buffer,id);
+    
+    //get the node from global LL
+     
+    while(itr != NULL){
+        if(itr -> id == id){
+            snprintf(userMessage,size + 1,"%s",buffer);
+            encrypt(itr -> key, userMessage, itr-> encryptRes);
+            printk(KERN_ALERT "%s has been ciphered into %s\n", userMessage, itr -> encryptRes);    
+            break;
+        }
+        itr = itr -> next;
+    }
     return size;
 }
+
+ssize_t encrypt_read(struct file* file, char* buffer, size_t size, loff_t* offset){
+    //figure out which file to read from:
+
+    struct inode* inode;
+    unsigned int minor;
+    int id;
+    pairNode* itr = head -> next;
+
+    
+    printk(KERN_ALERT "ass1\n");
+
+    inode = file-> f_path.dentry -> d_inode;
+    minor = iminor(inode);
+    id = minor/2;
+
+    printk(KERN_ALERT "ass2\n");
+    
+    printk(KERN_ALERT "reading from device %d\n", id);
+    
+    //get the node from global LL
+     
+    while(itr != NULL){
+        if(itr -> id == id){
+            sprintf(buffer, "%s", itr -> encryptRes);   
+            return strlen(itr -> encryptRes);
+        }
+        itr = itr -> next;
+    } 
+
+    return 0;
+
+}
+
+
+ssize_t decrypt_write(struct file* file, const char* buffer, size_t size,loff_t* offset){
+    //figure out which file is writing:
+    struct inode* inode;
+    unsigned int minor;
+    int id;
+    printk(KERN_ALERT "the heck?\n");
+
+    pairNode* itr = head -> next;
+
+    printk(KERN_ALERT "this sucks\n");
+    inode = file-> f_path.dentry -> d_inode;
+    minor = iminor(inode);
+    id = minor/2;
+
+    
+    printk(KERN_ALERT "writing %s to device %d\n", buffer,id);
+    
+    //get the node from global LL
+     
+    while(itr != NULL){
+        if(itr -> id == id){
+            snprintf(userMessage,size + 1,"%s",buffer);
+            decrypt(itr -> key, userMessage, itr-> decryptRes);
+            printk(KERN_ALERT "%s has been deciphered into %s\n", userMessage, itr -> decryptRes); 
+            break;
+        }
+        itr = itr -> next;
+    }
+    return size;
+}
+
+
+ssize_t decrypt_read(struct file* file, char* buffer, size_t size, loff_t* offset){
+    //figure out which file to read from:
+
+    struct inode* inode;
+    unsigned int minor;
+    int id;
+    pairNode* itr = head -> next;
+    
+
+    inode = file-> f_path.dentry -> d_inode;
+    minor = iminor(inode);
+    id = minor/2;
+
+    printk(KERN_ALERT "ass2\n");
+    
+    printk(KERN_ALERT "reading from device %d\n", id);
+    
+    //get the node from global LL
+     
+    while(itr != NULL){
+        if(itr -> id == id){
+            sprintf(buffer, "%s", itr -> decryptRes);   
+            return strlen(itr -> decryptRes);
+        }
+        itr = itr -> next;
+    } 
+
+    return 0;
+
+}
+
+
 
 
 int cryptctl_open(
@@ -61,13 +193,15 @@ int cryptctl_release(
     printk(KERN_ALERT "closed device\n");
     return 0;
 }
-//this should actually be called "encrypt_write" but that's for later
+
 ssize_t cryptctl_write(
     struct file* file,
     const char* buffer, 
     size_t size,
     loff_t* offset          
 ){
+    
+    
     //write to global buffer
     snprintf(userMessage,size,"%s",buffer);
     //encrypt("HOUGHTON", userMessage, encryptedMessage);
@@ -85,24 +219,39 @@ long cryptctl_ioctl(
 ){
 
     int id;
-  
+    char* key;
+    changeKeyParam* str_param;
+    //char* key;  
     switch(ioctl_cmd){
         case IOCTL_CREATE:
             //unpack the ioctl param  
-            id = (int)ioctl_param;
-            printk(KERN_ALERT "ioctl create recieved id %d\n", id);
-
+            key = (char*)ioctl_param;
             //create new encode/decode pair and store info somewheres
-            ioctl_create(id);        
+            printk(KERN_ALERT "creating sub_device\n");
+            ioctl_create(key);        
             break;
         case IOCTL_DESTROY:
             //unpack ioctl param
             id = (int)ioctl_param;
             printk(KERN_ALERT "ioctl delete recieved id is %d\n", id);
+            ioctl_delete(id);
             break;
+        case IOCTL_GET_KEY:
+            id = (int)ioctl_param;
+             printk(KERN_ALERT "ioctl get key recieved id is %d\n", id);
+            ioctl_get_key(id);
+            break;
+        
+        case IOCTL_CHANGE_KEY:
+            str_param = (changeKeyParam*)ioctl_param;
+            id = str_param -> id;
+            key = str_param-> key;
+
+            printk(KERN_ALERT "changing key of pair %d to %s\n", id,key);
+            ioctl_change_key(id, key);
+          
     }
 
-    printk(KERN_ALERT "in ioctl\n");
     return 0;
 }
 
@@ -117,61 +266,177 @@ struct file_operations cryptctl_fops = {
     .write = cryptctl_write
 };
 
-void ioctl_create(int id){
+int ioctl_create(char* key){
         char* enc_name;
+        char* dec_name;        
+
+        char* keyCpy;
         pairNode* newNode;
-        pairNode* itr;
-        //create a fops for encrypt
+        
         struct file_operations* enc_fop;
-
-        //make sure the key doesn't exist already by searching global LL (starting from head)
-        itr = head;
-        while(itr != NULL){
-            if(itr.)
-            itr = itr -> next;
-        }
-
+        struct file_operations* dec_fop;
+        
+        //create a fops for encrypt
         enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
         enc_fop -> owner = THIS_MODULE;
-        enc_fop -> write = cryptctl_write;
+        enc_fop -> write = encrypt_write;
+        enc_fop -> read = encrypt_read;
 
+        dec_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
+        dec_fop -> owner = THIS_MODULE;
+        dec_fop -> write = decrypt_write;
+        dec_fop -> read = decrypt_read;
+
+
+        //assign a name for all the things we have to create (use the same name for everythng) 
         enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
-        
-        //give a name 
-        sprintf(enc_name, "fuck%d", id);
+        sprintf(enc_name, "cryptEncrypt%d", idCounter);
+
+        dec_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
+        sprintf(dec_name, "cryptDecrypt%d", idCounter);
 
         //allocate space for new pairnode
         newNode = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL);
-        
+       
+        //init some struct values
+        newNode -> id = idCounter;
+        newNode -> next = head -> next;        
+        keyCpy = (char*)kmalloc(sizeof(char) * 21, GFP_KERNEL);
+        sprintf(keyCpy,"%s",key);
+        newNode -> key = keyCpy;
+        newNode -> encryptRes = (char*)kmalloc(sizeof(char) * 100, GFP_KERNEL);
+        newNode -> decryptRes = (char*)kmalloc(sizeof(char) * 100, GFP_KERNEL); 
+
         //append it to global LL 
-        temp -> next = newNode;
-        temp = temp -> next;     
+        head -> next = newNode;
    
         //create dev 
-        //the minor number of enc device will be 2 * id
-        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * id); 
-  
+        //the minor number of encrypt device will be 2 * idCounter
+        //the major number will be 2 * idCounter + 1
+        newNode -> enc_dev = MKDEV(MAJOR_NUM, 2 * idCounter); 
+        newNode -> dec_dev = MKDEV(MAJOR_NUM, 2 * idCounter + 1); 
+ 
         //register chraracter device region      
         if(register_chrdev_region(newNode->enc_dev, 1 , enc_name)){
-            printk(KERN_ALERT "failed to register chardev region\n");
+            printk(KERN_ALERT "encrypt: failed to register chardev region\n");
         }else{
-            printk(KERN_ALERT "registered chardev region!\n");    
+            printk(KERN_ALERT "encrypt: registered chardev region!\n");    
         }
+        
+        if(register_chrdev_region(newNode->dec_dev, 1 , dec_name)){
+            printk(KERN_ALERT "decrypt: failed to register chardev region\n");
+        }else{
+            printk(KERN_ALERT "decrypt: registered chardev region!\n");    
+        }
+        
         
         //allocating cdev space
         newNode -> enc_cdev = cdev_alloc();
         newNode -> enc_cdev -> ops = enc_fop;
         cdev_init(newNode->enc_cdev, enc_fop);
         if(cdev_add(newNode->enc_cdev, newNode->enc_dev, 1)  < 0){
-            printk(KERN_ALERT "failed to add cdev\n");
+            printk(KERN_ALERT "encrypt: failed to add cdev\n");
         }else{
-            printk(KERN_ALERT "added cdev\n");
+            printk(KERN_ALERT "encrypt: added cdev\n");
+        }
+
+        newNode -> dec_cdev = cdev_alloc();
+        newNode -> dec_cdev -> ops = dec_fop;
+        cdev_init(newNode->dec_cdev, dec_fop);
+        if(cdev_add(newNode->dec_cdev, newNode->dec_dev, 1)  < 0){
+            printk(KERN_ALERT "decrypt: failed to add cdev\n");
+        }else{
+            printk(KERN_ALERT "decrypt: added cdev\n");
         }
 
         //creating class and device
         newNode->enc_class = class_create(THIS_MODULE, enc_name);
         device_create(newNode->enc_class, NULL, newNode->enc_dev, NULL, enc_name);
-        
+
+        newNode->dec_class = class_create(THIS_MODULE, dec_name);
+        device_create(newNode->dec_class, NULL, newNode->dec_dev, NULL, dec_name);
+
+ 
+        //use the struct cdev to access kobj
+        kobject_add(newNode->enc_cdev-> )
+ 
+        //increment global idCounter
+        idCounter++;
+
+        return idCounter -1;     
+}
+
+void ioctl_get_key(int id){
+    pairNode* itr = head -> next;
+    printk(KERN_ALERT "in ioctl_get_key\n");
+    while(itr != NULL){
+        if(itr -> id == id){
+            printk(KERN_ALERT "current key of device %d is %s\n", id, itr->key);
+            //printk(KERN_ALERT "simulating get_key\n");
+            break;
+        }
+        itr = itr -> next;
+    }
+    
+}
+
+void ioctl_change_key(int id, char* key){
+    char* newKey;
+    pairNode* itr = head -> next;
+
+    while(itr != NULL){
+        if(itr -> id == id){
+            newKey = (char*)kmalloc(sizeof(char)*21, GFP_KERNEL);
+            sprintf(newKey, "%s", key);
+            itr -> key = newKey;
+            break;
+        }
+        itr = itr -> next;
+    }
+}
+
+void ioctl_delete(int id){
+    pairNode* itr_tmp;
+    pairNode* itr;
+    if(head == NULL){
+        printk(KERN_ALERT "idk why head would be null\n");
+        return;
+    }
+
+    itr_tmp = head;
+    itr = head -> next;
+    while(itr != NULL){
+        if(itr -> id == id){
+            //remove itr from list
+            itr_tmp -> next = itr_tmp -> next -> next;
+            
+            //removing device bookkeeping                        
+            device_destroy(itr->enc_class, itr->enc_dev);
+            class_destroy(itr->enc_class);    
+            unregister_chrdev_region(itr->enc_dev, 1);
+            cdev_del(itr->enc_cdev);
+
+            device_destroy(itr->dec_class, itr->dec_dev);
+            class_destroy(itr->dec_class);    
+            unregister_chrdev_region(itr->dec_dev, 1);
+            cdev_del(itr->dec_cdev);
+            //vvfree node & string
+            //vfree(itr -> key);
+            //vfree(itr);
+
+            printk(KERN_ALERT "deleted sub-device with id %d\n", id);
+            break;
+     
+        }
+        itr_tmp = itr;
+        itr = itr -> next;
+    }
+    
+    if(itr == NULL){
+        printk(KERN_ALERT "device with id %d could not be deleted bc it doesn't exist\n", id);
+    }
+
+
 }
 
 
@@ -179,10 +444,11 @@ int what(void){
     int i;
     int cryptctl_control_dev; 
     int cdev_ret;
-   
+
+ 
     //allocate stuff for global linked list
     head = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL); //dummy node
-    temp = head;
+    head -> next = NULL;
  
     //allocate space for string that user will input & null terminate
     userMessage = (char*)kmalloc(sizeof(char) * 1000,GFP_KERNEL);
@@ -221,33 +487,43 @@ int what(void){
 
 void exit_module(void){
     //for each thing in the linked list,unregister everythin
-
+    pairNode* f = head;
     pairNode* t = head -> next;
     while(t != NULL){
+        printk("LOOPZ\n");
+        //char dev info
         device_destroy(t->enc_class, t->enc_dev);
         class_destroy(t->enc_class);    
         unregister_chrdev_region(t->enc_dev, 1);
         cdev_del(t->enc_cdev);
+       
+        device_destroy(t->dec_class, t->dec_dev);
+        class_destroy(t->dec_class);    
+        unregister_chrdev_region(t->dec_dev, 1);
+        cdev_del(t->dec_cdev);
+ 
         printk(KERN_ALERT "deleted sub-device\n");
+        f = t;
         t = t -> next;
+        
+        //vfree node stuff 
+        //vfree(f -> key);
+        //vfree(f);
     } 
 
-    printk(KERN_ALERT "fuck1");
+    
+
     //destroy device file
     device_destroy(cryptctl_class, cryptctl_dev);
-    printk(KERN_ALERT "fuck2");
 
     //destroy class
     class_destroy(cryptctl_class);
 
-    printk(KERN_ALERT "fuck3");
     //unregister cdev space
     unregister_chrdev_region(MKDEV(MAJOR_NUM,0), 1);
 
-    printk(KERN_ALERT "fuck4");
     //unregister cdev numbers(the new way)
     cdev_del(my_cdev);
-    printk(KERN_ALERT "fuck5");
 
     printk(KERN_ALERT "exiting cryptctl module\n");
 }

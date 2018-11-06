@@ -89,8 +89,9 @@ int main(int argc, char* argv[]){
         }
         
         buffer = (char*)malloc(sizeof(char) * 1000);
-
-        if(read(sub_fd,buffer,999, 0) == 0){
+        
+        printf("boutta read\n");
+        if(read(sub_fd,buffer,999) == 0){
             printf("failed to read from encrypt\n");
         }else{
             printf("read successfully from encrypt\n");

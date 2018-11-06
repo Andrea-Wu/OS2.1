@@ -75,15 +75,20 @@ ssize_t encrypt_write(struct file* file, const char* buffer, size_t size,loff_t*
 
 ssize_t encrypt_read(struct file* file, const char* buffer, size_t size, loff_t* offset){
     //figure out which file to read from:
+
     struct inode* inode;
     unsigned int minor;
     int id;
     pairNode* itr = head -> next;
 
+    
+    printk(KERN_ALERT "ass1\n");
+
     inode = file-> f_path.dentry -> d_inode;
     minor = iminor(inode);
     id = minor/2;
 
+    printk(KERN_ALERT "ass2\n");
     
     printk(KERN_ALERT "reading from device %d\n", id);
     
@@ -92,7 +97,7 @@ ssize_t encrypt_read(struct file* file, const char* buffer, size_t size, loff_t*
     while(itr != NULL){
         if(itr -> id == id){
             sprintf(buffer, "%s", itr -> encryptRes);   
-            return strlen(encryptedRes);
+            return strlen(itr -> encryptRes);
         }
         itr = itr -> next;
     } 
@@ -200,6 +205,7 @@ int ioctl_create(char* key){
         enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
         enc_fop -> owner = THIS_MODULE;
         enc_fop -> write = encrypt_write;
+        enc_fop -> read = encrypt_read;
 
         //assign a name for all the things we have to create (use the same name for everythng) 
         enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);

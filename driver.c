@@ -43,7 +43,6 @@ typedef struct pairNode{
 } pairNode;
 
 pairNode* head;
-pairNode* temp;
 
 ssize_t encrypt_write(struct file* file, const char* buffer, size_t size,loff_t* offset){
     //figure out which file is writing:
@@ -216,15 +215,14 @@ int ioctl_create(char* key){
        
         //init some struct values
         newNode -> id = idCounter;
-        newNode -> next = NULL;        
+        newNode -> next = head -> next;        
         keyCpy = (char*)kmalloc(sizeof(char) * 21, GFP_KERNEL);
         sprintf(keyCpy,"%s",key);
         newNode -> key = keyCpy;
         newNode -> encryptRes = (char*)kmalloc(sizeof(char) * 100, GFP_KERNEL);
  
         //append it to global LL 
-        temp -> next = newNode;
-        temp = temp -> next;     
+        head -> next = newNode;
    
         //create dev 
         //the minor number of enc device will be 2 * idCounter
@@ -336,7 +334,6 @@ int what(void){
     //allocate stuff for global linked list
     head = (pairNode*)kmalloc(sizeof(pairNode), GFP_KERNEL); //dummy node
     head -> next = NULL;
-    temp = head;
  
     //allocate space for string that user will input & null terminate
     userMessage = (char*)kmalloc(sizeof(char) * 1000,GFP_KERNEL);

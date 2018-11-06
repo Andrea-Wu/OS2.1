@@ -23,6 +23,11 @@ char* encryptedMessage;
 //global id counter
 int idCounter = 1;
 
+//global variable to answer question "which device is being written to?"
+int whichDevice = -1;
+
+//TODO: mutex for whichDevice- if multiple users use the command at once. 
+//not completely necessary
 
 typedef struct pairNode{
     //if these are not freed when module is removed, then we fucked
@@ -32,7 +37,7 @@ typedef struct pairNode{
     struct class* enc_class;
 	dev_t enc_dev;
 
-    char* userStringEncrypt;
+    char* encryptRes;
         
     struct pairNode* next;
 } pairNode;
@@ -42,14 +47,34 @@ pairNode* temp;
 
 ssize_t encrypt_write(
     struct file* file,
-    const char* user, 
+    const char* buffer, 
     size_t size,
     loff_t* offset    
 ){
-    
-    
+    //figure out which file is writing:
+    struct inode* inode;
+    unsigned int minor;
+    int id;
+    pairNode* itr = head -> next;
 
-    printk(KERN_ALERT "inside encrypt_write\n");
+    inode = file-> f_path.dentry -> d_inode;
+    minor = iminor(inode);
+    id = minor/2;
+
+    
+    printk(KERN_ALERT "writing %s to device %d\n", buffer,id);
+    
+    //get the node from global LL
+     
+    while(itr != NULL){
+        if(itr -> id == id){
+            snprintf(userMessage,size + 1,"%s",buffer);
+            encrypt(itr -> key, userMessage, itr-> encryptRes);
+            printk(KERN_ALERT "%s has been ciphered into %s\n", userMessage, itr -> encryptRes);    
+            break;
+        }
+        itr = itr -> next;
+    }
     return size;
 }
 
@@ -76,6 +101,8 @@ ssize_t cryptctl_write(
     size_t size,
     loff_t* offset          
 ){
+    
+    
     //write to global buffer
     snprintf(userMessage,size,"%s",buffer);
     //encrypt("HOUGHTON", userMessage, encryptedMessage);
@@ -101,7 +128,7 @@ long cryptctl_ioctl(
             //unpack the ioctl param  
             key = (char*)ioctl_param;
             //create new encode/decode pair and store info somewheres
-            printk(KERN_ALERT "creating something\n");
+            printk(KERN_ALERT "creating sub_device\n");
             ioctl_create(key);        
             break;
         case IOCTL_DESTROY:
@@ -126,7 +153,6 @@ long cryptctl_ioctl(
           
     }
 
-    printk(KERN_ALERT "in ioctl\n");
     return 0;
 }
 
@@ -150,7 +176,7 @@ int ioctl_create(char* key){
         struct file_operations* enc_fop;
         enc_fop = (struct file_operations*)kmalloc(sizeof(struct file_operations), GFP_KERNEL);
         enc_fop -> owner = THIS_MODULE;
-        enc_fop -> write = cryptctl_write;
+        enc_fop -> write = encrypt_write;
 
         //assign a name for all the things we have to create (use the same name for everythng) 
         enc_name = (char*)kmalloc(sizeof(char) * 20, GFP_KERNEL);
@@ -165,6 +191,7 @@ int ioctl_create(char* key){
         keyCpy = (char*)kmalloc(sizeof(char) * 21, GFP_KERNEL);
         sprintf(keyCpy,"%s",key);
         newNode -> key = keyCpy;
+        newNode -> encryptRes = (char*)kmalloc(sizeof(char) * 100, GFP_KERNEL);
  
         //append it to global LL 
         temp -> next = newNode;
@@ -205,10 +232,7 @@ int ioctl_create(char* key){
 void ioctl_get_key(int id){
     pairNode* itr = head -> next;
     printk(KERN_ALERT "in ioctl_get_key\n");
-    printk(KERN_ALERT "id is %d\n", id);
-    
     while(itr != NULL){
-        printk(KERN_ALERT "itr -> id is %d\n", itr -> id);
         if(itr -> id == id){
             printk(KERN_ALERT "current key of device %d is %s\n", id, itr->key);
             //printk(KERN_ALERT "simulating get_key\n");
@@ -222,11 +246,8 @@ void ioctl_get_key(int id){
 void ioctl_change_key(int id, char* key){
     char* newKey;
     pairNode* itr = head -> next;
-    printk(KERN_ALERT "in ioctl_get_key\n");
-    printk(KERN_ALERT "id is %d\n", id);
-    
+
     while(itr != NULL){
-        printk(KERN_ALERT "itr -> id is %d\n", itr -> id);
         if(itr -> id == id){
             newKey = (char*)kmalloc(sizeof(char)*21, GFP_KERNEL);
             sprintf(newKey, "%s", key);
@@ -248,7 +269,6 @@ void ioctl_delete(int id){
     itr_tmp = head;
     itr = head -> next;
     while(itr != NULL){
-        printk(KERN_ALERT "at id %d\n", itr->id);
         if(itr -> id == id){
             //remove itr from list
             itr_tmp -> next = itr_tmp -> next -> next;

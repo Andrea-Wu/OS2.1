@@ -23,6 +23,7 @@ char* encrypt(char* key, char* str, char* enc){
     char str_i;
 
     int i;
+    printk(KERN_ALERT "initially string is %s\n", str);
     //clear enc;
     for(i=0; i<enc_len; i++){
         enc[i] = '\0';
@@ -35,7 +36,8 @@ char* encrypt(char* key, char* str, char* enc){
     makeCapitalized(str);
 
     //the cipher algorithm
-
+    printk(KERN_ALERT "before loop, string is %s", str);
+        
     for(i=0;i<str_len; i++){
         //if character is non-alphabetic, just ignore it
         //this is essentially isalpha(), which isn't available in kernel

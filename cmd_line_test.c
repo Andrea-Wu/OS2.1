@@ -11,6 +11,9 @@ int main(int argc, char* argv[]){
     int fd;
     int id;
     changeKeyParam* param;
+
+    int sub_fd;
+    char* devName;
     fd = open("/dev/cryptctl", O_RDWR);
     if(fd == -1){
         printf("file could not be opened, try again\n");
@@ -59,6 +62,30 @@ int main(int argc, char* argv[]){
 
         ioctl(fd, IOCTL_CHANGE_KEY, param);
     }else if(!strcmp(argv[1], "encrypt")){
+        if(!argv[2] || !argv[3]){
+            printf("please enter a device ID and string as argument\n");
+            return -1;
+        }
+        id = atoi(argv[2]);
+        if(id == 0){
+            printf("please enter a valid ID argument\n");
+            return -1;
+        }
+
+        //create string name
+        devName = (char*)malloc(sizeof(char)* 15);
+        sprintf(devName, "/dev/fuck%d", id);        
+        sub_fd = open(devName, O_RDWR);
+        if(sub_fd == -1){
+            printf("invalid device id\n");
+            return -1;
+        }
+        if(write(sub_fd, argv[3], strlen(argv[3])) == -1){
+            printf("failed to write\n");
+        }else{
+            printf("wrote successfully\n");
+        }
+        
         printf("encrypt\n");
     }else if(!strcmp(argv[1], "decrypt")){
         printf("decrypt\n");

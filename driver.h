@@ -8,5 +8,6 @@
 #include <linux/device.h>
 #include <linux/splice.h>
 #include <linux/slab.h>
+#include <linux/mutex.h>
 
 MODULE_LICENSE("Dual BSD/GPL");

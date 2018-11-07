@@ -280,6 +280,21 @@ ssize_t myShow(struct kobject *kobj, struct attribute *attr,char *buffer){
     
     char* name = attr->name;
     printk(KERN_ALERT "test name of attribute: %s\n", name);
+
+    char id_arr[6] = "";
+    int i = 6;
+    int j = 0;
+    id_arr[5] = '\0';
+    //printk(KERN_ALERT "Test char: %c\n", name[0]);
+    while(name[i] != '\0' && j < 5){
+        id_arr[j] = name[i];
+        printk(KERN_ALERT "Char inserted: %c\n", name[i]);
+        printk(KERN_ALERT "Char at: %c\n", id_arr[j]);
+        i++;
+        j++;
+    }
+    printk(KERN_ALERT "Test id string: %s\n", id_arr);
+
     return size;
 }
 

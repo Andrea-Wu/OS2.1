@@ -279,9 +279,12 @@ ssize_t myShow(struct kobject *kobj, struct attribute *attr,char *buffer){
 
 int ioctl_create(char* key){
         struct attribute* attr;
+        struct attribute* zeroed;
+
         struct kobj_type* ktype;
         struct kobject* kobj;
         struct sysfs_ops* sysfs_ops;
+        struct attribute** attr_arr;
 
         char* enc_name;
         char* dec_name;        
@@ -380,7 +383,7 @@ int ioctl_create(char* key){
         attr->name = "config";
         //attr->name = (char*)kmalloc(sizeof(char)*7, GFP_KERNEL);
         //sprintf(attr->name, "%s", "config");
-        attr->mode = S_IWUSR;
+        attr->mode = S_IRWXU;
 
         printk(KERN_ALERT "helpMe2\n");
         
@@ -389,9 +392,18 @@ int ioctl_create(char* key){
         kobj = &(newNode->enc_cdev-> kobj); //variable name is easier to work with
         ktype = kobj -> ktype;
         
+
+        attr_arr = (struct attribute**)kmalloc(sizeof(struct attribute*) * 2, GFP_KERNEL);
+        attr_arr[0] = attr;
         
+        zeroed = (struct attribute*)kmalloc(sizeof(struct attribute), GFP_KERNEL);
+        zeroed->name = 0;
+        zeroed->mode =0;
+
+        attr_arr[1] = 0;  
+
         //mess around with ktype
-        ktype->default_attrs = &attr;        
+        ktype->default_attrs = attr_arr;        
         //give this ktype some sysfs_ops
         sysfs_ops = (struct sysfs_ops*)kmalloc(sizeof(struct sysfs_ops), GFP_KERNEL);
         sysfs_ops->show = myShow;
@@ -399,15 +411,22 @@ int ioctl_create(char* key){
         ktype->sysfs_ops = sysfs_ops;   
 
         printk(KERN_ALERT "helpMe5\n"); 
-//       kobject_add(&(newNode->enc_cdev-> kobj), NULL, "crypt%d_key", idCounter);
 
-        kobject_add(kobj, kobj->parent, "crypt%d_key", idCounter);
+
+//      kobject_add(&(newNode->enc_cdev-> kobj), NULL, "crypt%d_key", idCounter);
+    
+        
+        if(kobject_add(kobj, kobj->parent, "c%d_key", idCounter) < 0){
+            printk(KERN_ALERT "kobject_add broke\n");
+        }else{
+            printk(KERN_ALERT "kobject_add worked?\n");
+        }
 
 
         printk(KERN_ALERT "helpMe6\n"); 
 
         //int sysfs_create_file(struct kobject *kobj, struct attribute *attr);
-        sysfs_create_file(&(newNode->enc_cdev-> kobj), attr);
+        //sysfs_create_file(&(newNode->enc_cdev-> kobj), attr);
         printk(KERN_ALERT "helpMe7\n");  
 
         //increment global idCounter

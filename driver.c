@@ -300,7 +300,28 @@ ssize_t myShow(struct kobject *kobj, struct attribute *attr,char *buffer){
 
     printk(KERN_ALERT "TEST id int: %d\n", *id_int);
 
+    pairNode* itr;
+    if(head == NULL){
+        printk(KERN_ALERT "idk why head would be null\n");
+        return size;
+    }
 
+    itr = head -> next;
+    while(itr != NULL){
+        if(itr -> id == *id_int){
+            
+            printk(KERN_ALERT "old key %s at %d\n", itr->key, itr->id);
+            char* kCpy = (char*)kmalloc(sizeof(char) * 21, GFP_KERNEL);
+            sprintf(kCpy,"%s",buffer);
+            itr->key = kCpy;
+
+            printk(KERN_ALERT "new`key %s at %d\n", itr->key, itr->id);
+            break;
+     
+        }
+        itr = itr -> next;
+    }
+    
     return size;
 }
 

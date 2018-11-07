@@ -385,6 +385,7 @@ void ioctl_change_key(int id, char* key){
         if(itr -> id == id){
             newKey = (char*)kmalloc(sizeof(char)*21, GFP_KERNEL);
             sprintf(newKey, "%s", key);
+            kfree(itr -> key);
             itr -> key = newKey;
             break;
         }
@@ -418,9 +419,11 @@ void ioctl_delete(int id){
             unregister_chrdev_region(itr->dec_dev, 1);
             cdev_del(itr->dec_cdev);
             //vvfree node & string
-            //vfree(itr -> key);
-            //vfree(itr);
-
+            kfree(itr -> key);
+            kfree(itr -> decryptRes);
+            kfree(itr -> encryptRes); 
+            kfree(itr);
+            itr = itr_tmp;
             printk(KERN_ALERT "deleted sub-device with id %d\n", id);
             break;
      

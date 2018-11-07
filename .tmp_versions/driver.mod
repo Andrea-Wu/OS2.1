@@ -1,3 +1,3 @@
-/home/superuser/OS2.1/driver.ko
-/home/superuser/OS2.1/driver.o
+/home/superuser/OS_Asst_2/driver.ko
+/home/superuser/OS_Asst_2/driver.o
 

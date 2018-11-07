@@ -276,6 +276,10 @@ ssize_t myShow(struct kobject *kobj, struct attribute *attr,char *buffer){
 }
  ssize_t myStore(struct kobject *kobj, struct attribute *attr,const char *buffer, size_t size){
     printk(KERN_ALERT "in myStore\n");
+    printk(KERN_ALERT "Reading %s from buffer\n", buffer);
+    
+    char* name = attr->name;
+    printk(KERN_ALERT "test name of attribute: %s\n", name);
     return size;
 }
 
@@ -382,9 +386,9 @@ int ioctl_create(char* key){
         //create/populate struct attribute 
         attr = (struct attribute*)kmalloc(sizeof(struct attribute), GFP_KERNEL);
         //attr->owner = THIS_MODULE;
-        attr->name = "config";
-        //attr->name = (char*)kmalloc(sizeof(char)*7, GFP_KERNEL);
-        //sprintf(attr->name, "%s", "config");
+        char* attr_name = (char*)kmalloc(sizeof(char)*10, GFP_KERNEL);
+        sprintf(attr_name, "config%d", idCounter);
+        attr->name = attr_name;
         attr->mode = S_IRWXU;
 
         printk(KERN_ALERT "helpMe2\n");

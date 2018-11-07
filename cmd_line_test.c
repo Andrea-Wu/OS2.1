@@ -155,7 +155,7 @@ int main(int argc, char* argv[]){
         }
 
         sysFileName = (char*)malloc(sizeof(char) * 30);
-        sprintf(sysFileName, "/sys/crypt%d_key/config%d", id, id);
+        sprintf(sysFileName, "/sys/c%d_key/config%d", id, id);
 
         sys_fd = open(sysFileName,O_RDWR);
 
@@ -163,7 +163,7 @@ int main(int argc, char* argv[]){
             printf("failed to open sys file for configuring key\n");
         }
         
-        if(write(sys_fd, argv[3], strlen(argv[3])) == -1){
+        if(write(sys_fd, argv[2], strlen(argv[2])) == -1){
             printf("failed to change key with sys\n");
         }else{
             printf("changed key with sys\n");

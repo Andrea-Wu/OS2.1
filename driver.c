@@ -497,7 +497,7 @@ void exit_module(void){
         class_destroy(t->dec_class);    
         unregister_chrdev_region(t->dec_dev, 1);
         cdev_del(t->dec_cdev);
- 
+	
         printk(KERN_ALERT "deleted sub-device\n");
         f = t;
         t = t -> next;
@@ -507,7 +507,16 @@ void exit_module(void){
         //vfree(f);
     } 
 
-    
+    f = head;
+    t = head->next;
+    while(t!=NULL){
+        kfree(t->key);
+	kfree(t->decryptRes);
+	kfree(t->encryptRes);
+        f = t;
+        t = t->next;
+        kfree(f);
+    } 
 
     //destroy device file
     device_destroy(cryptctl_class, cryptctl_dev);
@@ -520,7 +529,10 @@ void exit_module(void){
 
     //unregister cdev numbers(the new way)
     cdev_del(my_cdev);
-
+    
+    kfree(userMessage);
+    kfree(encryptedMessage);
+    kfree(head);
     printk(KERN_ALERT "exiting cryptctl module\n");
 }
 

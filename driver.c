@@ -295,6 +295,12 @@ ssize_t myShow(struct kobject *kobj, struct attribute *attr,char *buffer){
     }
     printk(KERN_ALERT "Test id string: %s\n", id_arr);
 
+    int* id_int = (int*) kmalloc(sizeof(int), GFP_KERNEL);
+    kstrtoint(id_arr, 10, id_int);
+
+    printk(KERN_ALERT "TEST id int: %d\n", *id_int);
+
+
     return size;
 }
 

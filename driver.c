@@ -267,9 +267,21 @@ struct file_operations cryptctl_fops = {
     .write = cryptctl_write
 };
 
+
+
+ssize_t myShow(struct kobject *kobj, struct attribute *attr,char *buffer){
+    return 0;
+}
+ ssize_t myStore(struct kobject *kobj, struct attribute *attr,const char *buffer, size_t size){
+   
+     return size;
+}
+
 int ioctl_create(char* key){
         struct attribute* attr;
         struct kobj_type* ktype;
+        struct kobject* kobj;
+        struct sysfs_ops* sysfs_ops;
 
         char* enc_name;
         char* dec_name;        
@@ -360,6 +372,8 @@ int ioctl_create(char* key){
         newNode->dec_class = class_create(THIS_MODULE, dec_name);
         device_create(newNode->dec_class, NULL, newNode->dec_dev, NULL, dec_name);
 
+        printk(KERN_ALERT "helpMe1\n");
+
         //create/populate struct attribute 
         attr = (struct attribute*)kmalloc(sizeof(struct attribute), GFP_KERNEL);
         //attr->owner = THIS_MODULE;
@@ -368,23 +382,42 @@ int ioctl_create(char* key){
         //sprintf(attr->name, "%s", "config");
         attr->mode = S_IWUSR;
 
-        //create/populate a kobj_type
-        ktype = kmalloc(sizeof(struct kobj_type), GFP_KERNEL);
-        ktype-> default_attrs = &attr;  
-   
+        printk(KERN_ALERT "helpMe2\n");
+        
         //kobject shit
         newNode ->kobj = &(newNode->enc_cdev-> kobj);
-        kobject_init(&(newNode->enc_cdev-> kobj),ktype);
-        kobject_add(&(newNode->enc_cdev-> kobj), NULL, "crypt%d_key", idCounter);
+        kobj = &(newNode->enc_cdev-> kobj); //variable name is easier to work with
+        ktype = kobj -> ktype;
+        
+        
+        //mess around with ktype
+        ktype->default_attrs = &attr;        
+        //give this ktype some sysfs_ops
+        sysfs_ops = (struct sysfs_ops*)kmalloc(sizeof(struct sysfs_ops), GFP_KERNEL);
+        sysfs_ops->show = myShow;
+        sysfs_ops->store = myStore;
+        ktype->sysfs_ops = sysfs_ops;   
+
+        printk(KERN_ALERT "helpMe5\n"); 
+//       kobject_add(&(newNode->enc_cdev-> kobj), NULL, "crypt%d_key", idCounter);
+
+        kobject_add(kobj, kobj->parent, "crypt%d_key", idCounter);
+
+
+        printk(KERN_ALERT "helpMe6\n"); 
 
         //int sysfs_create_file(struct kobject *kobj, struct attribute *attr);
         sysfs_create_file(&(newNode->enc_cdev-> kobj), attr);
- 
+        printk(KERN_ALERT "helpMe7\n");  
+
         //increment global idCounter
         idCounter++;
 
         return idCounter -1;     
 }
+
+
+
 
 void ioctl_get_key(int id){
     pairNode* itr = head -> next;
@@ -516,7 +549,7 @@ void exit_module(void){
         printk("LOOPZ\n");
         
         //remove kobject things
-        kobject_del(itr-> kobj);
+        kobject_del(t-> kobj);
 
         //char dev info
         device_destroy(t->enc_class, t->enc_dev);

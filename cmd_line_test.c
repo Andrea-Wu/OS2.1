@@ -13,8 +13,12 @@ int main(int argc, char* argv[]){
     changeKeyParam* param;
 
     int sub_fd;
+    int sys_fd;
+    char* sysFileName;
+
     char* devName;
     char* buffer;
+
 
     fd = open("/dev/cryptctl", O_RDWR);
     if(fd == -1){
@@ -139,6 +143,31 @@ int main(int argc, char* argv[]){
         }
         ioctl(fd, IOCTL_GET_KEY, atoi(argv[2]));   
         printf("get key (output to /var/log/kern.log)\n");
+    }else if(!strcmp(argv[1], "change_key_sys")){
+        if(!argv[2] || !argv[3]){
+            printf("please enter a key and device ID as argument\n");
+            return -1;
+        } 
+        id = atoi(argv[3]);
+        if(id == 0){
+            printf("please enter a valid device ID argument\n");
+            return -1;
+        }
+
+        sysFileName = (char*)malloc(sizeof(char) * 30);
+        sprintf(sysFileName, "/sys/crypt%d_key/config%d", id, id);
+
+        sys_fd = open(sysFileName,O_RDWR);
+
+        if(sys_fd <0){
+            printf("failed to open sys file for configuring key\n");
+        }
+        
+        if(write(sys_fd, argv[3], strlen(argv[3])) == -1){
+            printf("failed to change key with sys\n");
+        }else{
+            printf("changed key with sys\n");
+        }
     }else{
         printf("not a valid command\n");
     }

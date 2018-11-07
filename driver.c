@@ -270,11 +270,13 @@ struct file_operations cryptctl_fops = {
 
 
 ssize_t myShow(struct kobject *kobj, struct attribute *attr,char *buffer){
+    printk(KERN_ALERT "in myShow\n");
+    
     return 0;
 }
  ssize_t myStore(struct kobject *kobj, struct attribute *attr,const char *buffer, size_t size){
-   
-     return size;
+    printk(KERN_ALERT "in myStore\n");
+    return size;
 }
 
 int ioctl_create(char* key){
